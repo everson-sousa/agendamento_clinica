@@ -45,7 +45,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             // 10. LOGIN FALHOU
             // Usuário ou senha incorretos
-            echo "E-mail ou senha inválidos. Tente novamente.";
+            header("Location: login.php?erro=1");
+            exit;
             // (Em um sistema real, redirecionaríamos de volta ao login)
             // header("Location: login.php?erro=1");
         }

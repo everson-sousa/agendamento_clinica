@@ -158,3 +158,55 @@ form button {
 form button:hover {
     background-color: #27ae60;
 }
+/* ---- ESTILOS DA PÁGINA DE LOGIN ---- */
+.login-container {
+    width: 100%;
+    min-height: 100vh; /* Altura total da tela */
+    background-color: #f4f7fa; /* Mesmo fundo do body */
+    display: flex;
+    align-items: center; /* Centraliza verticalmente */
+    justify-content: center; /* Centraliza horizontalmente */
+    padding: 20px;
+}
+
+/* O <form> dentro do .login-container */
+.login-container form {
+    width: 100%;
+    max-width: 400px; /* Largura máxima da caixa de login */
+    /* O resto do estilo (sombra, borda, etc.) já vem do nosso CSS global */
+}
+
+.login-container h2 {
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 1.8em;
+    color: #2c3e50; /* Cor escura do menu */
+}
+
+.login-container p {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #555;
+}
+
+.login-error {
+    color: #e74c3c; /* Vermelho */
+    text-align: center;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+.login-error {
+    color: #e74c3c; /* Vermelho */
+    text-align: center;
+    margin-bottom: 15px; /* <--- Mantenha isso */
+    font-weight: bold;
+}
+
+/* Adicione estas duas regras */
+.login-container div { /* Afeta os divs dentro do container de login */
+    margin-bottom: 15px; /* Espaço entre os campos de input */
+}
+
+.login-container p:not(.login-error) { /* Afeta o parágrafo "Por favor..." mas não o de erro */
+    margin-bottom: 25px; /* Espaço abaixo do "Por favor..." */
+}

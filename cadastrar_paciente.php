@@ -1,19 +1,52 @@
 <?php
-// 1. Define o título desta página
+// 1. Define o título
 $tituloPagina = "Cadastrar Paciente"; 
 
 // 2. Inclui o cabeçalho
 require_once 'header.php'; 
 
-// O header.php já verifica se o usuário está logado.
-// Qualquer usuário logado (admin ou profissional) pode cadastrar pacientes.
+// 3. Inclui a conexão
+require_once 'conexao.php'; // <--- PRECISAMOS DISSO AGORA
+
+// 4. LÓGICA DE ADMIN: Buscar lista de profissionais
+// (A var $tipo_usuario vem do header.php)
+$lista_profissionais = [];
+if ($tipo_usuario == 'admin') {
+    $sql = "SELECT id, nome FROM usuarios WHERE tipo_acesso = 'profissional' AND status = 'ativo' ORDER BY nome ASC";
+    $stmt = $pdo->query($sql);
+    $lista_profissionais = $stmt->fetchAll();
+}
 ?>
 
 <p>Use este formulário para criar um novo registro (prontuário) de paciente.</p>
-<p>Este paciente ficará vinculado à sua conta de profissional.</p>
 
 <form action="processa_cadastro_paciente.php" method="POST">
     
+    <?php
+    // 5. LÓGICA CONDICIONAL: Mostra o dropdown se for ADMIN
+    if ($tipo_usuario == 'admin') {
+        echo '<div>';
+        echo '    <label for="id_profissional">Profissional Responsável:</label>';
+        echo '    <select id="id_profissional" name="id_profissional_responsavel" required>';
+        echo '        <option value="">Selecione um profissional</option>';
+        
+        foreach ($lista_profissionais as $profissional) {
+            echo '<option value="' . $profissional['id'] . '">' . htmlspecialchars($profissional['nome']) . '</option>';
+        }
+        
+        echo '    </select>';
+        echo '</div>';
+        echo '<p>Este paciente ficará vinculado ao profissional selecionado.</p>';
+    
+    } else {
+        // Se for um profissional, ele não vê a seleção.
+        // O próximo script vai pegar o ID dele da SESSÃO.
+        echo '<p>Este paciente ficará vinculado à sua conta.</p>';
+    }
+    ?>
+    
+    <hr style="margin: 20px 0;">
+
     <div>
         <label for="nome_completo">Nome Completo do Paciente:</label>
         <input type="text" id="nome_completo" name="nome_completo" required>
@@ -35,6 +68,6 @@ require_once 'header.php';
 </form>
 
 <?php
-// 3. Inclui o rodapé
+// 6. Inclui o rodapé
 require_once 'footer.php'; 
 ?>

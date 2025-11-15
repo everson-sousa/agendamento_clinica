@@ -9,8 +9,14 @@ if (!isset($_SESSION['usuario_id'])) {
 // 2. Inclui a conexão
 require_once 'conexao.php'; // Traz a variável $pdo
 
-// 3. Pega o ID do profissional logado (o "dono" do paciente)
-$id_profissional_responsavel = $_SESSION['usuario_id'];
+// 3. Pega o ID do profissional "dono"
+if ($_SESSION['usuario_tipo'] == 'admin' && isset($_POST['id_profissional_responsavel'])) {
+    // Se o Admin está logado E ele selecionou um profissional no formulário
+    $id_profissional_responsavel = $_POST['id_profissional_responsavel'];
+} else {
+    // Se for um profissional logado, ele mesmo é o dono
+    $id_profissional_responsavel = $_SESSION['usuario_id'];
+}
 
 // 4. Verifica se os dados vieram por POST
 if ($_SERVER["REQUEST_METHOD"] == "POST") {

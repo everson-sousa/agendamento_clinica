@@ -37,18 +37,16 @@ if (!isset($tituloPagina)) {
         <h2>Silvia Almeida Psicologia</h2>
         <nav>
             <ul>
-                <nav>
-            <ul>
                 <li><a href="dashboard.php">Dashboard</a></li>
                 <li><a href="cadastrar_agendamento.php">Novo Agendamento</a></li>
                 <li><a href="ver_agendamentos.php">Ver Agendamentos</a></li>
-                
                 <li><a href="cadastrar_paciente.php">Cadastrar Paciente</a></li>
                 
+                <li><a href="ver_pacientes.php">Ver Pacientes</a></li> 
+                
                 <?php
-                // Mostra link de "Gerenciar Usuários" SÓ para o admin
                 if ($tipo_usuario == 'admin') {
-                    echo "<li><a href='cadastrar.php'>Gerenciar Usuários</a></li>";
+                    // ...
                 }
                 ?>
             </ul>

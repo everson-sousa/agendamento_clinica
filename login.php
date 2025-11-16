@@ -21,9 +21,13 @@ session_start();
             <p>Por favor, acesse sua conta</p>
             
             <?php
-            // 4. Mostra mensagem de erro, se houver
+            // Mostra mensagem de erro, se houver
             if (isset($_GET['erro'])) {
                 echo '<p class="login-error">E-mail ou senha inválidos.</p>';
+            }
+            // Mostra mensagem de sucesso após redefinir a senha
+            if (isset($_GET['redefinida'])) {
+                echo '<p style="color: green; text-align: center; margin-bottom: 15px;">Senha redefinida com sucesso! Você já pode entrar.</p>';
             }
             ?>
 
@@ -37,6 +41,10 @@ session_start();
             </div>
             
             <button type="submit">Entrar</button>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="esqueci_senha.php">Esqueci minha senha</a>
+            </div>
         </form>
     </div> </body>
 </html>

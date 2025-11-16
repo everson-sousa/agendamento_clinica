@@ -81,8 +81,9 @@ if (count($agendamentos) == 0) {
                 echo "<td>" . ucfirst($ag['tipo_atendimento']) . "</td>";
                 echo "<td class='status-" . $ag['status'] . "'>" . ucfirst($ag['status']) . "</td>";
                 
-                // *** NOVO CAMPO ADICIONADO ***
-                echo "<td>" . $ag['status_pagamento'] . "</td>";
+                // Adiciona uma classe CSS se estiver pendente
+                $pagamento_style = ($ag['status_pagamento'] == 'Pendente') ? 'status-pendente' : 'status-pago';
+                echo "<td class='{$pagamento_style}'>" . $ag['status_pagamento'] . "</td>";
 
                 if ($tipo_usuario_logado == 'admin') {
                     echo "<td>" . htmlspecialchars($ag['nome_profissional']) . "</td>";

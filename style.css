@@ -210,3 +210,58 @@ form button:hover {
 .login-container p:not(.login-error) { /* Afeta o parágrafo "Por favor..." mas não o de erro */
     margin-bottom: 25px; /* Espaço abaixo do "Por favor..." */
 }
+.status-pendente {
+    color: #e67e22; /* Laranja */
+    font-weight: bold;
+}
+.status-pago {
+    color: #2ecc71; /* Verde */
+    font-weight: bold;
+}
+/* ---- ESTILOS DO NOVO DASHBOARD ---- */
+
+/* Título para cada dia (Segunda-feira, 17/11) */
+.dashboard-dia-titulo {
+    margin-top: 25px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #ddd;
+    font-size: 1.4em;
+    color: #2c3e50; /* Cor escura do menu */
+}
+
+/* Remove a margem extra do primeiro título */
+.dashboard-dia-titulo:first-child {
+    margin-top: 0;
+}
+
+/* Tabela do dashboard (um pouco mais leve que a principal) */
+.dashboard-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.dashboard-tabela th, 
+.dashboard-tabela td {
+    border: 1px solid #eee;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.dashboard-tabela th {
+    background-color: #f9f9f9;
+}
+
+
+/* ---- ESTILOS DE STATUS DE PAGAMENTO (SOLUÇÃO 3) ---- */
+.status-pendente {
+    color: #e67e22; /* Laranja */
+    font-weight: bold;
+}
+.status-pago {
+    color: #2ecc71; /* Verde */
+    font-weight: bold;
+}

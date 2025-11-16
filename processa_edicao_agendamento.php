@@ -13,83 +13,92 @@ require_once 'conexao.php'; // Traz a variável $pdo
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // 4. Pega os dados do formulário
-    $id_agendamento = $_POST['id_agendamento']; // ID do agendamento que estamos EDITANDO
+    $id_agendamento = $_POST['id_agendamento']; 
     $id_paciente = $_POST['id_paciente'];         
     $tipo_atendimento = $_POST['tipo_atendimento']; 
-    $status = $_POST['status'];
+    $status = $_POST['status']; // O NOVO status 
     $status_pagamento = $_POST['status_pagamento']; 
     $observacoes = $_POST['observacoes'];
-
-    // Combina data e hora
     $data_hora_inicio = $_POST['data_inicio'] . ' ' . $_POST['hora_inicio'];
     $data_hora_fim = $_POST['data_inicio'] . ' ' . $_POST['hora_fim'];
 
     try {
-        // 5. CHECAGEM DE PERMISSÃO (REFORÇO)
-        $sql_check = "SELECT id_profissional FROM agendamentos WHERE id = ?";
+        // --- 5. BUSCA DADOS ORIGINAIS ---
+        $sql_check = "SELECT id_profissional, status FROM agendamentos WHERE id = ?";
         $stmt_check = $pdo->prepare($sql_check);
         $stmt_check->execute([$id_agendamento]);
         $ag_original = $stmt_check->fetch();
-        $id_profissional = $ag_original['id_profissional']; // Pega o ID do profissional
+        if (!$ag_original) { die("Agendamento não encontrado."); }
+        
+        $id_profissional = $ag_original['id_profissional'];
+        $status_antigo = $ag_original['status']; // O status que estava no banco
 
-        if ($_SESSION['usuario_tipo'] != 'admin' && $ag_original['id_profissional'] != $_SESSION['usuario_id']) {
+        // --- 6. CHECAGEM DE PERMISSÃO ---
+        if ($_SESSION['usuario_tipo'] != 'admin' && $id_profissional != $_SESSION['usuario_id']) {
             die("Acesso negado.");
         }
 
-        // ------------------------------------------------------------------
-        // *** 6. VERIFICAÇÃO DE CONFLITO (DUPLICIDADE) NA EDIÇÃO ***
-        // ------------------------------------------------------------------
+        // --- 7. VERIFICAÇÃO DE CONFLITO (DUPLICIDADE) ---
         $sql_conflito = "SELECT id FROM agendamentos 
-                         WHERE id_profissional = ? 
-                         AND id != ?                  -- IGNORA este agendamento
-                         AND status != 'cancelado'
-                         AND data_hora_inicio < ?     -- Início Existente < Fim Novo
-                         AND data_hora_fim > ?       -- Fim Existente > Início Novo";
-
+                         WHERE id_profissional = ? AND id != ? AND status != 'cancelado'
+                         AND data_hora_inicio < ? AND data_hora_fim > ?";
         $stmt_conflito = $pdo->prepare($sql_conflito);
-        
-        $stmt_conflito->execute([
-            $id_profissional,
-            $id_agendamento,    // O ID que vamos ignorar
-            $data_hora_fim,     // Parâmetro 3 ($data_hora_fim)
-            $data_hora_inicio   // Parâmetro 4 ($data_hora_inicio)
-        ]);
-
+        $stmt_conflito->execute([$id_profissional, $id_agendamento, $data_hora_fim, $data_hora_inicio]);
         $conflito = $stmt_conflito->fetch();
 
-        // Se encontrou um conflito
         if ($conflito) {
             die("<b>Erro: Conflito de Horário!</b> O profissional já possui outro agendamento neste mesmo horário. <br><a href='javascript:history.back()'>Tentar Novamente</a>");
         }
-        // --- FIM DA VERIFICAÇÃO DE CONFLITO ---
-
-
-        // 7. Prepara o Comando SQL de ATUALIZAÇÃO (só executa se passou do passo 6)
+        
+        // --- 8. ATUALIZA O AGENDAMENTO (SALVA TUDO) ---
         $sql_update = "UPDATE agendamentos SET 
-                            id_paciente = ?, 
-                            data_hora_inicio = ?, 
-                            data_hora_fim = ?, 
-                            status = ?, 
-                            tipo_atendimento = ?,
-                            status_pagamento = ?,
-                            observacoes = ?
-                       WHERE 
-                            id = ?";
-
-        // 8. Executa o comando
+                            id_paciente = ?, data_hora_inicio = ?, data_hora_fim = ?, 
+                            status = ?, tipo_atendimento = ?, status_pagamento = ?, observacoes = ?
+                       WHERE id = ?";
+        
         $stmt_update = $pdo->prepare($sql_update);
         $stmt_update->execute([
-            $id_paciente,
-            $data_hora_inicio,
-            $data_hora_fim,
-            $status,
-            $tipo_atendimento,
-            $status_pagamento,
-            $observacoes,
-            $id_agendamento 
+            $id_paciente, $data_hora_inicio, $data_hora_fim, $status, 
+            $tipo_atendimento, $status_pagamento, $observacoes, $id_agendamento 
         ]);
 
-        // 9. Sucesso!
+        
+        // -----------------------------------------------------------
+        // *** 9. LÓGICA: DAR BAIXA EM SESSÕES ***
+        // -----------------------------------------------------------
+        if ($status == 'realizado' && $status_antigo != 'realizado') {
+            
+            $sql_baixa = "UPDATE planos_paciente SET
+                            sessoes_utilizadas = sessoes_utilizadas + 1
+                          WHERE
+                            id_paciente = ?
+                            AND tipo_atendimento = ?
+                            AND status = 'Ativo'
+                            AND sessoes_utilizadas < sessoes_contratadas";
+            
+            $stmt_baixa = $pdo->prepare($sql_baixa);
+            $stmt_baixa->execute([$id_paciente, $tipo_atendimento]);
+
+            // -----------------------------------------------------------
+            // *** 10. NOVA LÓGICA: AUTO-FINALIZAR PLANO/PACOTE ***
+            // -----------------------------------------------------------
+            // Após dar baixa, verifica se algum plano zerou o saldo
+            $sql_finaliza = "UPDATE planos_paciente SET
+                                status = 'Concluido'
+                             WHERE
+                                id_paciente = ?
+                                AND tipo_atendimento = ?
+                                AND status = 'Ativo'
+                                AND sessoes_utilizadas >= sessoes_contratadas"; // >= por segurança
+            
+            $stmt_finaliza = $pdo->prepare($sql_finaliza);
+            $stmt_finaliza->execute([$id_paciente, $tipo_atendimento]);
+            // --- FIM DA LÓGICA DE AUTO-FINALIZAR ---
+        }
+        // --- FIM DA LÓGICA DE BAIXA ---
+
+        
+        // --- 11. SUCESSO ---
         echo "Agendamento atualizado com sucesso!";
         echo '<br><a href="ver_agendamentos.php">Voltar para a Lista</a>';
         echo '<br><a href="dashboard.php">Voltar ao Painel</a>';

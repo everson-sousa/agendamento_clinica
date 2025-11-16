@@ -40,9 +40,9 @@ if (!isset($tituloPagina)) {
                 <li><a href="dashboard.php">Dashboard</a></li>
                 <li><a href="cadastrar_agendamento.php">Novo Agendamento</a></li>
                 <li><a href="ver_agendamentos.php">Ver Agendamentos</a></li>
-                <li><a href="cadastrar_paciente.php">Cadastrar Paciente</a></li>
-                
+                <li><a href="cadastrar_paciente.php">Cadastrar Paciente</a></li>                
                 <li><a href="ver_pacientes.php">Ver Pacientes</a></li> 
+                <li><a href="ver_planos.php">Gerenciar Planos</a></li>
                 
                 <?php
                 if ($tipo_usuario == 'admin') {

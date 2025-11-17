@@ -96,7 +96,7 @@ if (count($planos) == 0) {
                 echo "<tr{$style}>";
                 echo "<td>" . htmlspecialchars($plano['nome_paciente']) . "</td>";
                 echo "<td>" . htmlspecialchars($plano['tipo_plano']) . "</td>";
-                echo "<td>" . htmlspecialchars($plano['tipo_atendimento']) . "</td>";
+                echo "<td>" . ucfirst($plano['tipo_atendimento']) . "</td>"; // ucfirst para ficar bonito
                 
                 // Mostra o progresso
                 echo "<td><b>" . $progresso . "</b></td>";
@@ -108,9 +108,26 @@ if (count($planos) == 0) {
                     echo "<td>" . htmlspecialchars($plano['nome_profissional']) . "</td>";
                 }
                 
-                // Links para o "U" e "D" do CRUD
+                // Links de Ação
                 echo "<td>";
                 echo "<a href='editar_plano.php?id=" . $plano['id'] . "'>Editar</a>";
+                
+                // *** NOVO BOTÃO PAGAR ***
+                // Só mostra se o plano estiver ativo
+                if ($plano['status'] == 'Ativo') {
+                    echo " | <a href='gerar_pagamento.php?id_plano=" . $plano['id'] . "' target='_blank' style='color: #27ae60; font-weight: bold;'>Pagar</a>";
+                }
+                
+                echo "</td>";
+                
+                // Link Editar
+                echo "<a href='editar_plano.php?id=" . $plano['id'] . "'>Editar</a>";
+                
+                // *** NOVO: Link Pagar (Só se estiver Ativo) ***
+                if ($plano['status'] == 'Ativo') {
+                    echo " | <a href='gerar_pagamento.php?id_plano=" . $plano['id'] . "' target='_blank' style='color: #27ae60; font-weight: bold;'>Pagar</a>";
+                }
+
                 echo "</td>";
                 
                 echo "</tr>";

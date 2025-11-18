@@ -1,49 +1,45 @@
 <?php
+// Inicia o buffer para evitar erros de redirecionamento
+ob_start();
 session_start();
 
-// Define o caminho base do sistema (Evita erros de pasta no Windows/XAMPP)
+// Define caminhos absolutos
 $base_dir = __DIR__;
-
-// 1. Carrega dependências
 require_once $base_dir . '/conexao.php';
 $autoload_path = $base_dir . '/vendor/autoload.php';
 
-// Verifica se o autoloader existe
+// Verifica se o autoload existe
 if (!file_exists($autoload_path)) {
-    die("ERRO CRÍTICO: O arquivo 'vendor/autoload.php' não foi encontrado.<br>Execute 'composer require mercadopago/dx-php:2.5.3' no terminal.");
+    die("Erro: Autoload não encontrado.");
 }
 require_once $autoload_path;
 
-// Importa as classes (Essencial para funcionar)
 use MercadoPago\SDK;
 use MercadoPago\Preference;
 use MercadoPago\Item;
 
-// 2. Pega o ID do plano
-if (!isset($_GET['id_plano'])) { 
-    die("Erro: ID do plano não informado."); 
-}
+// 1. Verifica ID do plano
+if (!isset($_GET['id_plano'])) { die("ID do plano não informado."); }
 $id_plano = $_GET['id_plano'];
 
-// 3. Busca dados do plano e do profissional
+// 2. Busca dados no banco
 $sql = "SELECT plan.*, pac.nome_completo, usr.mp_access_token 
         FROM planos_paciente AS plan
         JOIN pacientes AS pac ON plan.id_paciente = pac.id
         JOIN usuarios AS usr ON plan.id_profissional = usr.id
         WHERE plan.id = ?";
-
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$id_plano]);
 $plano = $stmt->fetch();
 
-if (!$plano) {
-    die("Plano não encontrado.");
+// 3. Validações
+if (!$plano || empty($plano['mp_access_token'])) {
+    die("Erro: Configuração financeira incompleta ou plano não encontrado.");
 }
 
-if (empty($plano['mp_access_token'])) {
-    die("<h3 style='color:red'>Erro: Configuração Financeira Incompleta</h3>
-         <p>O profissional responsável ainda não configurou o Token do Mercado Pago.</p>
-         <p>Acesse 'Config. Financeira' no menu e salve suas credenciais de produção.</p>");
+$valor_cobranca = (float) $plano['valor'];
+if ($valor_cobranca <= 0) {
+    die("Erro: O valor deste plano é zero.");
 }
 
 // 4. Gera o Pagamento
@@ -51,35 +47,34 @@ try {
     // Configura o Token
     SDK::setAccessToken($plano['mp_access_token']);
 
-    // Cria o Carrinho
+    // Cria a Preferência
     $preference = new Preference();
     $item = new Item();
     $item->title = "Pacote: " . ucfirst($plano['tipo_atendimento']) . " - " . $plano['nome_completo'];
     $item->quantity = 1;
-    $item->unit_price = 150.00;
-    $preference->items = [$item];
+    $item->unit_price = $valor_cobranca;
     
-    // Tenta salvar
+    $preference->items = [$item];
+
+    // Configura retorno
+    $base_url = "http://localhost/clinica"; 
+    $preference->back_urls = array(
+        "success" => $base_url . "/ver_planos.php?status=aprovado",
+        "failure" => $base_url . "/ver_planos.php?status=falha",
+        "pending" => $base_url . "/ver_planos.php?status=pendente"
+    );
+    $preference->auto_return = "approved";
+
+    // Salva no Mercado Pago
     $preference->save();
 
-    // --- ÁREA DE DEBUG ---
-    echo "<h3>Debug do Mercado Pago:</h3>";
-    
-    if ($preference->init_point) {
-        echo "<p style='color:green'>SUCESSO! Link gerado:</p>";
-        echo "<a href='" . $preference->init_point . "'>" . $preference->init_point . "</a>";
-        // Se quiser testar o redirecionamento, descomente a linha abaixo:
-        // header("Location: " . $preference->init_point);
-    } else {
-        echo "<p style='color:red'>ERRO: O link não foi gerado.</p>";
-        echo "<pre>";
-        // Mostra qualquer erro que o Mercado Pago tenha devolvido (ex: erro SSL)
-        print_r($preference); 
-        echo "</pre>";
-    }
-    // --------------------
+    // Redireciona o usuário
+    ob_clean();
+    header("Location: " . $preference->init_point);
+    exit;
 
 } catch (Exception $e) {
-    die("Erro Fatal (Exception): " . $e->getMessage());
+    // Se cair aqui, mostra o erro na tela
+    die("Erro ao conectar com Mercado Pago: " . $e->getMessage());
 }
 ?>

@@ -51,6 +51,9 @@ if ($tipo_usuario_logado == 'admin') {
                 <?php endforeach; ?>
             </select>
         </div>
+        <div id="profissional-display" style="font-weight: bold; color: #007bff; margin-bottom: 15px;">
+            Selecione o profissional para continuar.
+        </div>
     <?php else: ?>
         <input type="hidden" name="id_profissional" value="<?php echo $id_usuario_logado; ?>">
     <?php endif; ?>
@@ -72,13 +75,7 @@ if ($tipo_usuario_logado == 'admin') {
     
     <hr style="margin: 20px 0;">
 
-    <div>
-        <label for="tipo_plano">Tipo de Registro (Financeiro):</label>
-        <select id="tipo_plano" name="tipo_plano" required>
-            <option value="Tratamento">Plano de Tratamento (Global)</option>
-            <option value="Pacote">Pacote de Pagamento (Financeiro)</option>
-        </select>
-    </div>
+    <input type="hidden" id="tipo_plano_hidden" name="tipo_plano" value="Pacote">
     
     <div>
         <label for="tipo_atendimento">Tipo de Atendimento:</label>
@@ -118,17 +115,26 @@ if ($tipo_usuario_logado == 'admin') {
 </form>
 
 <script>
-// 1. AJAX PARA CARREGAR PACIENTES
 const profissionalSelect = document.getElementById('id_profissional_ajax');
 const pacienteSelect = document.getElementById('id_paciente');
+const profissionalDisplay = document.getElementById('profissional-display'); 
+const tipoSelect = document.getElementById('tipo_atendimento');
+const tituloAgendamento = document.getElementById('titulo-agendamento');
+const textoAgendamento = document.getElementById('texto-agendamento');
+const tipoPlanoHidden = document.getElementById('tipo_plano_hidden'); // Pega o campo escondido
 
 if (profissionalSelect) {
+    // Lógica AJAX (omitida para brevidade, mas está correta)
     profissionalSelect.addEventListener('change', function() {
         const idProfissional = this.value;
+        const nomeProfissional = profissionalSelect.options[profissionalSelect.selectedIndex].text;
+        
+        profissionalDisplay.innerText = `Agendando para: ${nomeProfissional}`;
         pacienteSelect.innerHTML = '<option value="">Carregando...</option>';
         pacienteSelect.disabled = true;
 
         if (!idProfissional) {
+            profissionalDisplay.innerText = 'Selecione o profissional para continuar.';
             pacienteSelect.innerHTML = '<option value="">Selecione um profissional acima</option>';
             return;
         }
@@ -137,34 +143,33 @@ if (profissionalSelect) {
             .then(response => response.json())
             .then(pacientes => {
                 pacienteSelect.innerHTML = '<option value="">Selecione um paciente</option>';
-                pacientes.forEach(paciente => {
-                    const option = document.createElement('option');
-                    option.value = paciente.id;
-                    option.textContent = paciente.nome_completo;
-                    pacienteSelect.appendChild(option);
-                });
+                pacientes.forEach(p => { pacienteSelect.innerHTML += `<option value="${p.id}">${p.nome_completo}</option>`; });
                 pacienteSelect.disabled = false;
             })
-            .catch(error => {
-                console.error('Erro:', error);
-                pacienteSelect.innerHTML = '<option value="">Erro ao carregar</option>';
-            });
+            .catch(error => { console.error('Erro no AJAX:', error); });
     });
 }
 
-// 2. LÓGICA VISUAL (Muda texto)
-const tipoSelect = document.getElementById('tipo_atendimento');
-const tituloAgendamento = document.getElementById('titulo-agendamento');
-const textoAgendamento = document.getElementById('texto-agendamento');
-
+// LÓGICA VISUAL E DE VALOR ESCONDIDO
 function atualizarTextoUI() {
     const tipo = tipoSelect.value;
+    
+    // 1. Lógica de Agendamento Sequencial (Muda Texto)
     if (tipo === 'plantao' || tipo === 'terapia_avulsa') {
         tituloAgendamento.innerText = "Agendamento da Consulta";
         textoAgendamento.innerText = "Defina a data e o horário desta sessão única.";
     } else {
         tituloAgendamento.innerText = "Agendamento Automático (Sequencial)";
         textoAgendamento.innerText = "Defina o horário da 1ª sessão. As seguintes serão agendadas semanalmente.";
+    }
+
+    // 2. LÓGICA CRUCIAL: SETAR O VALOR ESCONDIDO (Tipo de Registro)
+    if (tipo === 'avaliacao') {
+        // Avaliação (10 sessões) é o Plano de Tratamento (Global)
+        tipoPlanoHidden.value = 'Tratamento';
+    } else {
+        // Terapia Pacote, Avulsa e Plantão são Pacotes (Financeiro)
+        tipoPlanoHidden.value = 'Pacote';
     }
 }
 tipoSelect.addEventListener('change', atualizarTextoUI);

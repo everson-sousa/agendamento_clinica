@@ -14,8 +14,31 @@ function checarConflito($pdo, $id_profissional, $data_inicio, $data_fim) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $id_paciente = $_POST['id_paciente'];
-    $id_profissional = $_POST['id_profissional'];
+
+    // 1. PEGA DADOS
+    // Usamos ?? null para garantir que a variável exista se o campo estiver vazio
+    $id_paciente = $_POST['id_paciente'] ?? null;
+    $id_profissional = $_POST['id_profissional'] ?? null;
+    $tipo_plano = $_POST['tipo_plano']; 
+    $tipo_escolhido = $_POST['tipo_atendimento']; 
+    $valor = $_POST['valor'];
+    
+    $data_inicio_primeira = $_POST['data_inicio'];
+    $hora_inicio_primeira = $_POST['hora_inicio'];
+    $hora_fim_primeira = $_POST['hora_fim'];
+
+
+    // -----------------------------------------------------------
+    // *** NOVA VALIDAÇÃO (IMEDIATA) ***
+    // -----------------------------------------------------------
+    if (empty($id_paciente) || empty($id_profissional)) {
+        die("<div style='font-family:Arial; padding:20px; color:red; border:1px solid red; background:#fff0f0;'>
+                <h3>Erro de Validação!</h3>
+                <p>Por favor, selecione um Paciente <b>E</b> um Profissional.</p>
+                <a href='javascript:history.back()'>Voltar e Corrigir</a>
+             </div>");
+    
+    }
     $tipo_plano = $_POST['tipo_plano']; 
     $tipo_escolhido = $_POST['tipo_atendimento']; 
     $valor = $_POST['valor']; // <-- NOVO: Captura o valor

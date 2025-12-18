@@ -1,4 +1,8 @@
 <?php
+require_once 'auth.php';
+$tituloPagina = "Cadastrar Agendamentos";
+require_once 'header.php';
+
 $tituloPagina = "Novo Agendamento";
 require_once 'header.php';
 require_once 'conexao.php'; 

@@ -1,4 +1,8 @@
 <?php
+require_once 'auth.php';
+$tituloPagina = "Cadastrar";
+require_once 'header.php';
+
 // 1. Define o título desta página
 $tituloPagina = "Gerenciar Usuários"; 
 

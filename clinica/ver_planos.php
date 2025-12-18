@@ -1,4 +1,14 @@
 <?php
+require_once 'auth.php';
+$tituloPagina = "Ver Planos";
+require_once 'header.php';
+
+session_start();
+
+if (!isset($_SESSION['usuario_id'])) {
+    header('Location: login.php');
+    exit;
+}
 // 1. Define o título
 $tituloPagina = "Gerenciar Planos e Pacotes"; 
 

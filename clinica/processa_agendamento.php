@@ -1,4 +1,10 @@
 <?php
+session_start();
+
+if (!isset($_SESSION['usuario_id'])) {
+    header('Location: login.php');
+    exit;
+}
 // 1. Inicia a sessão e faz a verificação de segurança
 session_start();
 if (!isset($_SESSION['usuario_id'])) {

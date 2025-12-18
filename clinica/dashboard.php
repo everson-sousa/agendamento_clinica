@@ -6,7 +6,7 @@ require_once 'header.php';
 // ======================================================
 // 1. PROTEÇÃO DE ACESSO (SEMPRE NO TOPO)
 // ======================================================
-session_start();
+//session_start();
 
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');

@@ -1,14 +1,27 @@
 <?php
-// Sempre inicie a sessão
 session_start();
 
-// 1. Limpa todas as variáveis da sessão
+// Remove todas as variáveis
 session_unset();
 
-// 2. Destrói a sessão
+// Destroi a sessão
 session_destroy();
 
-// 3. Redireciona para a página de login
+// Remove o cookie da sessão (boa prática)
+if (ini_get("session.use_cookies")) {
+    $params = session_get_cookie_params();
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params["path"],
+        $params["domain"],
+        $params["secure"],
+        $params["httponly"]
+    );
+}
+
+// Redireciona
 header("Location: login.php");
 exit;
 ?>

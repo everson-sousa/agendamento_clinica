@@ -7,6 +7,27 @@ $db_user = 'root';       // Usuário padrão do XAMPP
 $db_pass = '';           // Senha padrão do XAMPP (vazia)
 $charset = 'utf8mb4';    // O charset que definimos no banco
 
+// $host = "sql210.infinityfree.com";
+// $db   = "if0_40715905_clinica";
+// $user = "if0_40715905";
+// $pass = "cymD88n2UYY";
+
+// try {
+//     $pdo = new PDO(
+//         "mysql:host=$host;dbname=$db;charset=utf8mb4",
+//         $user,
+//         $pass,
+//         [
+//             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+//             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+//         ]
+//     );
+// } catch (PDOException $e) {
+//     die("Erro de conexão.");
+// }
+// mysql_set_charset($conexao, “utf8”);
+// ?>
+
 // 2. String de Conexão (DSN)
 $dsn = "mysql:host=$host;dbname=$db_name;charset=$charset";
 

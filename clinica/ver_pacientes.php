@@ -3,7 +3,7 @@ require_once 'auth.php';
 $tituloPagina = "Ver Pacientes";
 require_once 'header.php';
 
-session_start();
+//session_start();
 
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');

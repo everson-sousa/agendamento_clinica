@@ -1,4 +1,5 @@
 <?php
+session_start();
 $tituloPagina = "Adicionar Novo Plano/Pacote"; 
 require_once 'header.php'; 
 require_once 'conexao.php'; 

@@ -1,6 +1,7 @@
 <?php
 session_start();
 
+// 🔹 Usa APENAS o arquivo que você já tem
 require_once 'conexao.php';
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -25,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($usuario && password_verify($senha_pura, $usuario['senha'])) {
 
-            // Proteção contra session fixation
+            // 🔐 Proteção contra session fixation
             session_regenerate_id(true);
 
             $_SESSION['usuario_id']   = $usuario['id'];
@@ -36,8 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit;
 
         } else {
-            // Pequeno delay contra brute force
-            sleep(1);
+            sleep(1); // anti brute-force básico
             header("Location: login.php?erro=1");
             exit;
         }

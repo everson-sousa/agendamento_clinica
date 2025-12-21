@@ -265,3 +265,81 @@ form button:hover {
     color: #2ecc71; /* Verde */
     font-weight: bold;
 }
+/* Botão Sanduíche (Hamburguer) */
+.menu-toggle {
+    display: none; /* Escondido no computador */
+    background-color: #2c3e50;
+    color: white;
+    padding: 15px;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-size: 1.2em;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 1100;
+}
+
+@media (max-width: 768px) {
+    /* 1. Resetar o Body: Tira o buraco de 220px da esquerda */
+    body {
+        padding-left: 0 !important;
+        overflow-x: hidden; /* Impede o site de sambar para os lados */
+    }
+
+    /* 2. Sidebar: Deixa de ser fixa e vira um menu vertical comum */
+    .sidebar {
+        position: relative !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 20px !important;
+        transform: none !important; /* Garante que ela apareça */
+        display: block; 
+    }
+
+    .sidebar h2 {
+        margin-bottom: 15px;
+    }
+
+    /* 3. Links do Menu: Empilha um embaixo do outro com espaço para o dedo */
+    .sidebar nav ul {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .sidebar nav a {
+        background: rgba(255,255,255,0.1);
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    /* 4. Conteúdo Principal: Garante que ele ocupe 100% da largura */
+    .main-content {
+        padding: 15px !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    /* 5. Tabelas: O segredo para não quebrar a largura do site */
+    .table-container {
+        width: 100%;
+        overflow-x: auto; /* Cria scroll só na tabela se ela for grande */
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 20px;
+    }
+
+    table, .dashboard-tabela {
+        width: 100%;
+        min-width: 500px; /* Impede a tabela de esmagar o texto */
+    }
+
+    /* 6. Top Bar: Ajusta o "Olá" e o "Sair" */
+    .top-bar {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+    }
+}

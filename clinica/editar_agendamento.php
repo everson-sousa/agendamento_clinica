@@ -22,23 +22,22 @@ if ($tipo_usuario != 'admin' && $agendamento['id_profissional'] != $id_usuario_l
     die("Acesso negado.");
 }
 
-// Pega o ID do profissional "dono" do agendamento
 $id_profissional_agendamento = $agendamento['id_profissional'];
 
-// --- Busca 2: Lista de Pacientes (deste profissional) ---
+// --- Busca 2: Lista de Pacientes ---
 $lista_pacientes = [];
 try {
     $sql_pacientes = "SELECT id, nome_completo FROM pacientes 
                       WHERE id_profissional_responsavel = ? AND status = 'ativo' 
                       ORDER BY nome_completo ASC";
     $stmt_pacientes = $pdo->prepare($sql_pacientes);
-    $stmt_pacientes->execute([$id_profissional_agendamento]); // Carrega pacientes do "dono"
+    $stmt_pacientes->execute([$id_profissional_agendamento]); 
     $lista_pacientes = $stmt_pacientes->fetchAll();
 } catch (PDOException $e) {
     echo "Erro ao buscar pacientes: " . $e->getMessage();
 }
 
-// --- Busca 3: Planos (deste profissional) ---
+// --- Busca 3: Planos ---
 $todos_planos_json = '[]';
 try {
     $sql_planos = "SELECT id_paciente, tipo_plano, tipo_atendimento, sessoes_contratadas, sessoes_utilizadas 
@@ -52,10 +51,21 @@ try {
     echo "Erro ao buscar planos: " . $e->getMessage();
 }
 
-// --- Prepara dados para o formulário ---
+// --- Prepara dados ---
 $data_inicio_val = date('Y-m-d', strtotime($agendamento['data_hora_inicio']));
 $hora_inicio_val = date('H:i', strtotime($agendamento['data_hora_inicio'])); 
-$hora_fim_val    = date('H:i', strtotime($agendamento['data_hora_fim']));    
+$hora_fim_val    = date('H:i', strtotime($agendamento['data_hora_fim'])); 
+
+// =======================================================
+// LÓGICA DE BLOQUEIO (MÁQUINA DE ESTADOS)
+// =======================================================
+
+// 1. Pagamento: Se está PAGO, bloqueia.
+$travar_pagamento = ($agendamento['status_pagamento'] == 'Pago');
+
+// 2. Status: Se está REALIZADO ou CANCELADO, bloqueia.
+$travar_status = in_array($agendamento['status'], ['realizado', 'cancelado']);
+
 ?>
 
 <form action="processa_edicao_agendamento.php" method="POST">
@@ -63,7 +73,7 @@ $hora_fim_val    = date('H:i', strtotime($agendamento['data_hora_fim']));
 
     <div>
         <label for="id_paciente">Paciente:</label>
-        <select id="id_paciente" name="id_paciente" required>
+        <select id="id_paciente" name="id_paciente" required <?php if($travar_status) echo 'style="pointer-events: none; background: #eee;"'; ?>>
             <option value="">Selecione um paciente</option>
             <?php foreach ($lista_pacientes as $paciente): ?>
                 <option value="<?php echo $paciente['id']; ?>"
@@ -76,20 +86,14 @@ $hora_fim_val    = date('H:i', strtotime($agendamento['data_hora_fim']));
     </div>
 
     <div id="info-planos-paciente" style="display: none; padding: 10px; background-color: #f4f7fa; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
-        </div>
+    </div>
 
     <div>
         <label for="tipo_atendimento">Tipo de Atendimento:</label>
         <select id="tipo_atendimento" name="tipo_atendimento" required>
-            <option value="terapia" <?php if($agendamento['tipo_atendimento'] == 'terapia') echo 'selected'; ?>>
-                Terapia (Sessão)
-            </option>
-            <option value="plantao" <?php if($agendamento['tipo_atendimento'] == 'plantao') echo 'selected'; ?>>
-                Plantão
-            </option>
-            <option value="avaliacao" <?php if($agendamento['tipo_atendimento'] == 'avaliacao') echo 'selected'; ?>>
-                Avaliação
-            </option>
+            <option value="terapia" <?php if($agendamento['tipo_atendimento'] == 'terapia') echo 'selected'; ?>>Terapia (Sessão)</option>
+            <option value="plantao" <?php if($agendamento['tipo_atendimento'] == 'plantao') echo 'selected'; ?>>Plantão</option>
+            <option value="avaliacao" <?php if($agendamento['tipo_atendimento'] == 'avaliacao') echo 'selected'; ?>>Avaliação</option>
         </select>
     </div>
 
@@ -105,21 +109,42 @@ $hora_fim_val    = date('H:i', strtotime($agendamento['data_hora_fim']));
         <label for="hora_fim">Hora de Fim:</label>
         <input type="time" id="hora_fim" name="hora_fim" value="<?php echo $hora_fim_val; ?>" required>
     </div>
+
     <div>
         <label for="status">Status da Consulta:</label>
-        <select id="status" name="status" required>
-            <option value="marcado" <?php if($agendamento['status'] == 'marcado') echo 'selected'; ?>>Marcado</option>
-            <option value="realizado" <?php if($agendamento['status'] == 'realizado') echo 'selected'; ?>>Realizado (Concluído)</option>
-            <option value="cancelado" <?php if($agendamento['status'] == 'cancelado') echo 'selected'; ?>>Cancelado</option>
-        </select>
+        
+        <?php if ($travar_status): ?>
+            <select disabled style="background-color: #e9ecef; cursor: not-allowed;">
+                <option selected><?php echo ucfirst($agendamento['status']); ?></option>
+            </select>
+            <input type="hidden" name="status" value="<?php echo $agendamento['status']; ?>">
+            <small style="color:red">Status finalizado não pode ser alterado.</small>
+        <?php else: ?>
+            <select id="status" name="status" required>
+                <option value="marcado" <?php if($agendamento['status'] == 'marcado') echo 'selected'; ?>>Marcado</option>
+                <option value="realizado" <?php if($agendamento['status'] == 'realizado') echo 'selected'; ?>>Realizado (Concluído)</option>
+                <option value="cancelado" <?php if($agendamento['status'] == 'cancelado') echo 'selected'; ?>>Cancelado</option>
+            </select>
+        <?php endif; ?>
     </div>
+
     <div>
         <label for="status_pagamento">Status do Pagamento:</label>
-        <select id="status_pagamento" name="status_pagamento" required>
-            <option value="Pendente" <?php if($agendamento['status_pagamento'] == 'Pendente') echo 'selected'; ?>>Pendente</option>
-            <option value="Pago" <?php if($agendamento['status_pagamento'] == 'Pago') echo 'selected'; ?>>Pago</option>
-        </select>
+
+        <?php if ($travar_pagamento): ?>
+            <select disabled style="background-color: #e9ecef; cursor: not-allowed;">
+                <option selected>Pago</option>
+            </select>
+            <input type="hidden" name="status_pagamento" value="Pago">
+            <small style="color:green">Pagamento confirmado. Não é possível alterar.</small>
+        <?php else: ?>
+            <select id="status_pagamento" name="status_pagamento" required>
+                <option value="Pendente" <?php if($agendamento['status_pagamento'] == 'Pendente') echo 'selected'; ?>>Pendente</option>
+                <option value="Pago" <?php if($agendamento['status_pagamento'] == 'Pago') echo 'selected'; ?>>Pago</option>
+            </select>
+        <?php endif; ?>
     </div>
+
     <div>
         <label for="observacoes">Observações (Opcional):</label>
         <textarea id="observacoes" name="observacoes" rows="4"><?php echo htmlspecialchars($agendamento['observacoes']); ?></textarea>
@@ -183,12 +208,12 @@ function atualizarInfoPlanos() {
     infoDiv.style.display = 'block';
 }
 
-// "Escuta" mudanças
-pacienteSelect.addEventListener('change', atualizarInfoPlanos);
+// "Escuta" mudanças se o campo não estiver travado
+if (!pacienteSelect.style.pointerEvents) {
+    pacienteSelect.addEventListener('change', atualizarInfoPlanos);
+}
 tipoAtendimentoSelect.addEventListener('change', atualizarInfoPlanos);
 
-// *** CHAMA A FUNÇÃO UMA VEZ NO INÍCIO ***
-// (Para mostrar o resumo do paciente que já está selecionado)
 document.addEventListener('DOMContentLoaded', atualizarInfoPlanos);
 </script>
 

@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // 1. Inclui as classes do PHPMailer
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -43,7 +46,7 @@ try {
 
     // 9. Monta o link de redefinição
     // (IMPORTANTE: Mude 'localhost' para o seu domínio real quando for para a internet)
-    $link = "http://localhost/clinica/redefinir_senha.php?token=" . $token;
+    $link = "http://infinityeverson.free.nf/redefinir_senha.php?token=" . $token;
 
     // 10. Configura o PHPMailer para enviar o e-mail
     $mail = new PHPMailer(true);

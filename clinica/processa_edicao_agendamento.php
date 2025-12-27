@@ -1,4 +1,6 @@
 <?php
+// processa_edicao_agendamento.php
+
 // 1. Inicia a sessão e verifica segurança
 session_start();
 if (!isset($_SESSION['usuario_id'])) {
@@ -24,7 +26,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     try {
         // --- 5. BUSCA DADOS ORIGINAIS ---
-        $sql_check = "SELECT id_profissional, status FROM agendamentos WHERE id = ?";
+        // Adicionei status_pagamento na busca para conferir a regra
+        $sql_check = "SELECT id_profissional, status, status_pagamento FROM agendamentos WHERE id = ?";
         $stmt_check = $pdo->prepare($sql_check);
         $stmt_check->execute([$id_agendamento]);
         $ag_original = $stmt_check->fetch();
@@ -32,16 +35,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         $id_profissional = $ag_original['id_profissional'];
         $status_antigo = $ag_original['status']; // O status que estava no banco
+        $status_pagamento_antigo = $ag_original['status_pagamento']; // O pagamento que estava no banco
 
         // --- 6. CHECAGEM DE PERMISSÃO ---
-        if ($_SESSION['usuario_tipo'] != 'admin' && $id_profissional != $_SESSION['usuario_id']) {
+        if (isset($_SESSION['usuario_tipo']) && $_SESSION['usuario_tipo'] != 'admin' && $id_profissional != $_SESSION['usuario_id']) {
             die("Acesso negado.");
         }
 
+        // ======================================================================
+        // --- 6.5. REGRAS DE SEGURANÇA (MÁQUINA DE ESTADOS) ---
+        // ======================================================================
+
+        // REGRA 1: Se já estava PAGO, não pode voltar a ser PENDENTE
+        if ($status_pagamento_antigo == 'Pago' && $status_pagamento != 'Pago') {
+             die("<b>Ação Bloqueada:</b> O pagamento já foi confirmado. Não é possível reverter para Pendente.<br><br><a href='javascript:history.back()'>Voltar</a>");
+        }
+
+        // REGRA 2: Se já estava REALIZADO ou CANCELADO, não pode mudar o status
+        if (in_array($status_antigo, ['realizado', 'cancelado']) && $status != $status_antigo) {
+             die("<b>Ação Bloqueada:</b> A consulta já foi finalizada ($status_antigo). Não é possível alterar o status agora.<br><br><a href='javascript:history.back()'>Voltar</a>");
+        }
+        // ======================================================================
+
+
         // --- 7. VERIFICAÇÃO DE CONFLITO (DUPLICIDADE) ---
         $sql_conflito = "SELECT id FROM agendamentos 
-                         WHERE id_profissional = ? AND id != ? AND status != 'cancelado'
-                         AND data_hora_inicio < ? AND data_hora_fim > ?";
+                          WHERE id_profissional = ? AND id != ? AND status != 'cancelado'
+                          AND data_hora_inicio < ? AND data_hora_fim > ?";
         $stmt_conflito = $pdo->prepare($sql_conflito);
         $stmt_conflito->execute([$id_profissional, $id_agendamento, $data_hora_fim, $data_hora_inicio]);
         $conflito = $stmt_conflito->fetch();
@@ -89,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 id_paciente = ?
                                 AND tipo_atendimento = ?
                                 AND status = 'Ativo'
-                                AND sessoes_utilizadas >= sessoes_contratadas"; // >= por segurança
+                                AND sessoes_utilizadas >= sessoes_contratadas";
             
             $stmt_finaliza = $pdo->prepare($sql_finaliza);
             $stmt_finaliza->execute([$id_paciente, $tipo_atendimento]);

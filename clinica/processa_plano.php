@@ -1,132 +1,129 @@
 <?php
 session_start();
-if (!isset($_SESSION['usuario_id'])) { header("Location: login.php"); exit; }
 require_once 'conexao.php';
-date_default_timezone_set('America/Sao_Paulo');
 
-function checarConflito($pdo, $id_profissional, $data_inicio, $data_fim) {
-    try {
-        $sql_conflito = "SELECT id FROM agendamentos WHERE id_profissional = ? AND status != 'cancelado' AND data_hora_inicio < ? AND data_hora_fim > ?";
-        $stmt_conflito = $pdo->prepare($sql_conflito);
-        $stmt_conflito->execute([$id_profissional, $data_fim, $data_inicio]);
-        return $stmt_conflito->fetch() ? true : false;
-    } catch (PDOException $e) { return true; }
+// 1. Verificação de Segurança e Sessão
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: adicionar_plano.php");
+    exit;
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+// 2. Recebendo os dados do formulário
+$id_profissional = $_POST['id_profissional'];
+$id_paciente     = $_POST['id_paciente'];
+$tipo_atend      = $_POST['tipo_atendimento'];
+$valor_total     = str_replace(',', '.', $_POST['valor']); // Garante formato 150.00
+$data_inicio     = $_POST['data_inicio'];
+$hora_inicio     = $_POST['hora_inicio'];
+$hora_fim        = $_POST['hora_fim'];
+$tipo_plano_desc = $_POST['tipo_plano']; // 'Pacote' ou 'Tratamento'
 
-    // 1. PEGA DADOS
-    // Usamos ?? null para garantir que a variável exista se o campo estiver vazio
-    $id_paciente = $_POST['id_paciente'] ?? null;
-    $id_profissional = $_POST['id_profissional'] ?? null;
-    $tipo_plano = $_POST['tipo_plano']; 
-    $tipo_escolhido = $_POST['tipo_atendimento']; 
-    $valor = $_POST['valor'];
-    
-    $data_inicio_primeira = $_POST['data_inicio'];
-    $hora_inicio_primeira = $_POST['hora_inicio'];
-    $hora_fim_primeira = $_POST['hora_fim'];
+// 3. Definindo a Quantidade de Sessões baseada na escolha
+$qtd_sessoes = 1;
+switch ($tipo_atend) {
+    case 'terapia_pacote':
+        $qtd_sessoes = 4;
+        break;
+    case 'avaliacao':
+        $qtd_sessoes = 10;
+        break;
+    case 'plantao':
+    case 'terapia_avulsa':
+    default:
+        $qtd_sessoes = 1;
+        break;
+}
 
+// 4. Gerando um ID único para agrupar esse pacote
+// Isso permite que no futuro você cancele o pacote inteiro de uma vez
+$grupo_id = uniqid('plan_'); 
 
-    // -----------------------------------------------------------
-    // *** NOVA VALIDAÇÃO (IMEDIATA) ***
-    // -----------------------------------------------------------
-    if (empty($id_paciente) || empty($id_profissional)) {
-        die("<div style='font-family:Arial; padding:20px; color:red; border:1px solid red; background:#fff0f0;'>
-                <h3>Erro de Validação!</h3>
-                <p>Por favor, selecione um Paciente <b>E</b> um Profissional.</p>
-                <a href='javascript:history.back()'>Voltar e Corrigir</a>
-             </div>");
-    
-    }
-    $tipo_plano = $_POST['tipo_plano']; 
-    $tipo_escolhido = $_POST['tipo_atendimento']; 
-    $valor = $_POST['valor']; // <-- NOVO: Captura o valor
+// INÍCIO DA TRANSAÇÃO (Segurança do Banco)
+// Se der erro na 5ª sessão, ele desfaz a 1ª, 2ª, 3ª e 4ª automaticamente.
+$pdo->beginTransaction();
 
-    $data_inicio_primeira = $_POST['data_inicio'];
-    $hora_inicio_primeira = $_POST['hora_inicio'];
-    $hora_fim_primeira = $_POST['hora_fim'];
+try {
+    $datas_conflito = [];
 
-    // Validação de Data Passada
-    if (($data_inicio_primeira . ' ' . $hora_inicio_primeira) < date('Y-m-d H:i')) {
-        die("Erro: Não é possível agendar no passado.");
-    }
-
-    // Tradutor de Opções
-    $tipo_atendimento_banco = ''; 
-    $sessoes_contratadas = 0;
-
-    switch ($tipo_escolhido) {
-        case 'terapia_avulsa':
-            $tipo_atendimento_banco = 'terapia';
-            $sessoes_contratadas = 1;
-            break;
-        case 'terapia_pacote':
-            $tipo_atendimento_banco = 'terapia';
-            $sessoes_contratadas = 4;
-            break;
-        case 'plantao':
-            $tipo_atendimento_banco = 'plantao';
-            $sessoes_contratadas = 1;
-            break;
-        case 'avaliacao':
-            $tipo_atendimento_banco = 'avaliacao';
-            $sessoes_contratadas = 10;
-            break;
-        default:
-            die("Erro: Tipo inválido.");
-    }
-
-    if ($_SESSION['usuario_tipo'] == 'profissional' && $id_profissional != $_SESSION['usuario_id']) {
-        die("Acesso negado.");
-    }
-
-    try {
-        // --- SALVA O PLANO/PACOTE (Com Valor) ---
-        $sql_plano = "INSERT INTO planos_paciente 
-                        (id_paciente, id_profissional, tipo_plano, tipo_atendimento, valor, sessoes_contratadas)
-                      VALUES (?, ?, ?, ?, ?, ?)";
+    // 5. Loop para criar os agendamentos
+    for ($i = 0; $i < $qtd_sessoes; $i++) {
         
-        $stmt_plano = $pdo->prepare($sql_plano);
-        $stmt_plano->execute([
-            $id_paciente, 
+        // Calcula a data: Data Inicio + (7 dias * indice)
+        // i=0 (hoje), i=1 (semana que vem), i=2 (daqui 2 semanas)...
+        $data_calculada = date('Y-m-d', strtotime($data_inicio . " + $i week"));
+
+        // A. VERIFICAÇÃO DE CONFLITO (Overbooking)
+        // Verifica se o PROFISSIONAL já tem algo marcado nessa data/hora
+        $sql_check = "SELECT id FROM agendamentos 
+                      WHERE id_profissional = ? 
+                      AND data_agendamento = ? 
+                      AND (
+                          (hora_inicio < ? AND hora_fim > ?) OR -- O novo começa durante um existente
+                          (hora_inicio >= ? AND hora_inicio < ?) -- O novo termina durante um existente
+                      )
+                      AND status != 'cancelado'";
+        
+        $stmt_check = $pdo->prepare($sql_check);
+        $stmt_check->execute([
             $id_profissional, 
-            $tipo_plano, 
-            $tipo_atendimento_banco, 
-            $valor, // <-- Salva no banco
-            $sessoes_contratadas
+            $data_calculada, 
+            $hora_fim, $hora_inicio, // Lógica de sobreposição de horário
+            $hora_inicio, $hora_fim
         ]);
-        
-        // --- ROBÔ AGENDADOR ---
-        $sessoes_agendadas = 0;
-        $datas_com_conflito = [];
 
-        $sql_agendamento = "INSERT INTO agendamentos (id_profissional, id_paciente, data_hora_inicio, data_hora_fim, status, tipo_atendimento, status_pagamento, observacoes) VALUES (?, ?, ?, ?, 'marcado', ?, 'Pendente', ?)";
-        $stmt_agendamento = $pdo->prepare($sql_agendamento);
-
-        for ($i = 0; $i < $sessoes_contratadas; $i++) {
-            $data_sessao_atual = date('Y-m-d', strtotime($data_inicio_primeira . " +$i weeks"));
-            $data_hora_inicio_sessao = $data_sessao_atual . ' ' . $hora_inicio_primeira;
-            $data_hora_fim_sessao = $data_sessao_atual . ' ' . $hora_fim_primeira;
-            
-            if (checarConflito($pdo, $id_profissional, $data_hora_inicio_sessao, $data_hora_fim_sessao)) {
-                $datas_com_conflito[] = date('d/m/Y', strtotime($data_sessao_atual));
-            } else {
-                $observacao = "Sessão " . ($i + 1) . "/" . $sessoes_contratadas . " (" . ucfirst($tipo_plano) . ")";
-                $stmt_agendamento->execute([$id_profissional, $id_paciente, $data_hora_inicio_sessao, $data_hora_fim_sessao, $tipo_atendimento_banco, $observacao]);
-                $sessoes_agendadas++;
-            }
+        if ($stmt_check->rowCount() > 0) {
+            // Se achou conflito, guarda a data para avisar o usuário
+            $datas_conflito[] = date('d/m/Y', strtotime($data_calculada));
+            continue; // Pula para a próxima (ou você pode usar 'break' para cancelar tudo)
         }
-        
-        // --- RESUMO ---
-        echo "<div style='font-family: Arial, padding: 20px;'><h2 style='color: #27ae60;'>Plano criado com sucesso!</h2><p><b>Agendamento Automático:</b> {$sessoes_agendadas} de {$sessoes_contratadas} sessões agendadas.</p>";
-        if (count($datas_com_conflito) > 0) {
-            echo "<div style='color: red;'>Conflito nas datas: " . implode(", ", $datas_com_conflito) . ". Agende manualmente.</div>";
-        }
-        echo '<br><a href="ver_planos.php">Ver Planos</a> | <a href="ver_agendamentos.php">Ver Calendário</a></div>';
 
-    } catch (PDOException $e) {
-        echo "Erro ao salvar: " . $e->getMessage();
+        // B. INSERIR NO BANCO
+        // Nota: Salvamos o valor total apenas no primeiro registro ou dividido?
+        // Estratégia: Salva o valor no banco para referência, mas o pagamento é pelo grupo_id
+        $sql_insert = "INSERT INTO agendamentos (
+            id_profissional, 
+            id_paciente, 
+            data_agendamento, 
+            hora_inicio, 
+            hora_fim, 
+            tipo_servico, 
+            valor, 
+            grupo_id, 
+            status_pagamento,
+            status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'aguardando', 'agendado')";
+
+        $stmt_insert = $pdo->prepare($sql_insert);
+        $stmt_insert->execute([
+            $id_profissional,
+            $id_paciente,
+            $data_calculada,
+            $hora_inicio,
+            $hora_fim,
+            $tipo_atend, // ex: terapia_pacote
+            $valor_total, // Valor salvo em cada registro para histórico
+            $grupo_id
+        ]);
     }
+
+    // 6. Finalização
+    if (count($datas_conflito) > 0) {
+        // Se houve conflitos, decidimos se damos Rollback ou Commit parcial
+        // Para segurança médica, melhor dar Rollback e avisar para escolher outro horário
+        $pdo->rollBack();
+        $_SESSION['msg_erro'] = "Erro: O profissional já tem agendamentos nas datas: " . implode(", ", $datas_conflito);
+        header("Location: adicionar_plano.php");
+        exit;
+    } else {
+        $pdo->commit();
+        $_SESSION['msg_sucesso'] = "Sucesso! Foram agendadas $qtd_sessoes sessões.";
+        // Redireciona para a lista ou para o checkout (link de pagamento)
+        header("Location: meus_agendamentos.php"); 
+        exit;
+    }
+
+} catch (Exception $e) {
+    $pdo->rollBack();
+    echo "Erro grave no sistema: " . $e->getMessage();
 }
 ?>

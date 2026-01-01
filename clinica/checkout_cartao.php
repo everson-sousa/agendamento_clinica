@@ -1,29 +1,48 @@
 <?php
-// checkout_cartao.php - FRONTEND (Formulário Visual)
+// checkout_cartao.php
+// Lógica: Usa credenciais do Admin (ID 1) para cobrar, mas agenda para o Profissional escolhido.
+
 session_start();
 require_once 'conexao.php';
 
-// 1. Validação básica
-if (!isset($_GET['id_agendamento'])) {
-    die("Erro: ID do agendamento não fornecido.");
-}
-$id_agendamento = $_GET['id_agendamento'];
-
-// 2. Busca a Public Key no banco
-// (Seu sistema usa usuario_id na sessão ou pega o admin padrão ID 1)
-$id_usuario = $_SESSION['usuario_id'] ?? 1;
-$stmt = $pdo->prepare("SELECT mp_public_key, email FROM usuarios WHERE id = ? LIMIT 1");
-$stmt->execute([$id_usuario]);
-$user_data = $stmt->fetch();
-$public_key = $user_data['mp_public_key'] ?? '';
-
-if (empty($public_key)) {
-    die("Erro: Public Key não configurada no banco de dados.");
+// 1. Verifica se veio do formulário de reserva
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['id_slot'])) {
+    // Se tentar acessar direto, mata o script
+    die("Erro: Acesso inválido. Por favor, inicie o agendamento selecionando um horário.");
 }
 
-// Dados simulados do paciente (em produção viria do banco)
-$valor_sessao = 1.00; // Valor de teste
-$email_paciente = "paciente_teste@email.com";
+// 2. Coleta os dados vindos do POST (Formulário anterior)
+$id_slot = (int)$_POST['id_slot'];
+$id_servico = (int)$_POST['id_servico'];
+$id_profissional = (int)$_POST['id_profissional']; // ID da Silvia (ou outro)
+$nome = htmlspecialchars($_POST['nome'] ?? '');
+$email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
+$cpf = htmlspecialchars($_POST['cpf'] ?? '');
+$whatsapp = htmlspecialchars($_POST['whatsapp'] ?? '');
+
+try {
+    // 3. Busca dados do Serviço (Preço Real)
+    $stmt = $pdo->prepare("SELECT nome_servico, preco FROM servicos WHERE id = ? LIMIT 1");
+    $stmt->execute([$id_servico]);
+    $servico = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$servico) die("Erro: Serviço não encontrado no banco.");
+    
+    $preco_real = (float)$servico['preco'];
+    $nome_servico = $servico['nome_servico'];
+
+    // 4. Busca a Public Key DO ADMIN (ID 1) - CENTRALIZAÇÃO FINANCEIRA
+    // O dinheiro vai cair na conta do ID 1
+    $stmt_key = $pdo->query("SELECT mp_public_key FROM usuarios WHERE id = 1 LIMIT 1");
+    $public_key = $stmt_key->fetchColumn();
+
+    if (empty($public_key)) {
+        die("Erro Crítico: Chave de pagamento (Public Key) não configurada no usuário Admin (ID 1).");
+    }
+
+} catch (PDOException $e) {
+    die("Erro de banco de dados: " . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>
@@ -34,99 +53,102 @@ $email_paciente = "paciente_teste@email.com";
     <title>Pagamento Seguro</title>
     <script src="https://sdk.mercadopago.com/js/v2"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
-        h3 { text-align: center; color: #333; margin-bottom: 20px; }
-        .info-valor { text-align: center; margin-bottom: 20px; font-size: 18px; color: #555; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; padding: 20px; display: flex; justify-content: center; }
+        .checkout-container { background: white; width: 100%; max-width: 480px; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #333; margin-top: 0; font-size: 22px; margin-bottom: 20px; }
+        .resumo { background: #e9ecef; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 1px solid #dee2e6; }
+        .total { font-size: 28px; font-weight: bold; color: #27ae60; margin-top: 5px; }
+        .item { font-size: 16px; color: #555; font-weight: 500; }
+        .user-data { font-size: 13px; color: #777; margin-bottom: 25px; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h3>💳 Pagamento Seguro</h3>
-        <p class="info-valor">Valor a pagar: <strong>R$ <?php echo number_format($valor_sessao, 2, ',', '.'); ?></strong></p>
-        
-        <div id="paymentBrick_container"></div>
+<div class="checkout-container">
+    <h2>Finalizar Agendamento</h2>
+
+    <div class="resumo">
+        <div class="item"><?php echo htmlspecialchars($nome_servico); ?></div>
+        <div class="total">R$ <?php echo number_format($preco_real, 2, ',', '.'); ?></div>
     </div>
 
-    <script>
-    const mp = new MercadoPago('<?php echo $public_key; ?>', {
-        locale: 'pt-BR'
-    });
+    <div class="user-data">
+        Paciente: <strong><?php echo $nome; ?></strong><br>
+        CPF: <?php echo $cpf; ?>
+    </div>
+   
+    <div id="paymentBrick_container"></div>
+</div>
 
+<script>
+    // Inicializa com a chave do ADMIN (ID 1)
+    const mp = new MercadoPago('<?php echo $public_key; ?>', { locale: 'pt-BR' });
     const bricksBuilder = mp.bricks();
 
     const renderPaymentBrick = async (bricksBuilder) => {
         const settings = {
             initialization: {
-                amount: <?php echo $valor_sessao; ?>,
+                amount: <?php echo $preco_real; ?>,
                 payer: {
-                    email: '<?php echo $email_paciente; ?>',
+                    email: '<?php echo $email; ?>', // Preenche e-mail automático
                 },
             },
             customization: {
                 paymentMethods: {
                     creditCard: "all",
-                    bankTransfer: "all", // Permite PIX também
-                    maxInstallments: 3
+                    bankTransfer: "all", // Pix
+                    maxInstallments: 6
                 },
                 visual: {
-                    style: {
-                        theme: 'default' 
-                    }
+                    style: { theme: 'default' }
                 }
             },
             callbacks: {
                 onReady: () => {
-                    // Ocultar loading se tiver
+                    // Carregou
                 },
                 onSubmit: ({ selectedPaymentMethod, formData }) => {
-                    // Função que processa o clique no botão "Pagar"
+                    // Monta o pacote de dados para enviar ao backend
+                    const payload = {
+                        ...formData,
+                        agendamento: {
+                            id_slot: <?php echo $id_slot; ?>,
+                            id_servico: <?php echo $id_servico; ?>,
+                            id_profissional: <?php echo $id_profissional; ?>, // Envia o ID da Silvia para agendar corretamente
+                            nome: "<?php echo $nome; ?>",
+                            email: "<?php echo $email; ?>",
+                            cpf: "<?php echo $cpf; ?>",
+                            whatsapp: "<?php echo $whatsapp; ?>"
+                        }
+                    };
+
                     return new Promise((resolve, reject) => {
-                        
                         fetch("processar_cartao.php", {
                             method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                                ...formData, 
-                                id_agendamento: "<?php echo $id_agendamento; ?>"
-                            })
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload)
                         })
-                        .then((response) => response.json()) // Transforma a resposta em objeto
-                        .then((response) => {
-                            console.log("Resposta do servidor:", response);
-
-                            // LÓGICA DE RESPOSTA ATUALIZADA
-                            if (response.status === "approved") {
-                                alert("✅ Pagamento Aprovado com Sucesso!");
-                                window.location.href = "ver_agendamentos.php";
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === "approved") {
+                                // Sucesso Cartão -> Redireciona para comprovante
+                                window.location.href = "sucesso.php?id=" + data.id_pagamento; 
                             } 
-                            else if (response.status === "pix_created") {
-                                // Se o usuário escolheu PIX no formulário híbrido
-                                document.querySelector('.container').innerHTML = `
-                                    <div style="text-align:center">
-                                        <h3 style="color:#28a745">✅ PIX Gerado!</h3>
-                                        <img src="data:image/png;base64,${response.qr_code_base64}" width="200" style="margin:10px 0"><br>
-                                        <p>Copie e cole no app do banco:</p>
-                                        <textarea style="width:100%; height:80px; font-size:12px; padding:5px" readonly>${response.qr_code}</textarea>
-                                        <br><br>
-                                        <button onclick="window.location.reload()" style="padding:10px 20px; cursor:pointer">Voltar</button>
-                                    </div>
-                                `;
-                            } 
-                            else {
-                                // MOSTRA O ERRO REAL (Não mostra mais JSON Input)
-                                var motivo = response.message || "Erro desconhecido ao processar.";
-                                alert("❌ Ocorreu um problema: " + motivo);
+                            else if (data.status === "pending" && data.payment_method_id === 'pix') {
+                                // Sucesso Pix -> Mostra alerta e QR Code (simplificado)
+                                alert("Pix Gerado! Copie o código na próxima tela.");
+                                // Redireciona para o sucesso.php mas passa flag de pix se quiser tratar lá
+                                // Por enquanto, vamos manter simples:
+                                document.body.innerHTML = '<div style="padding:20px;text-align:center;font-family:sans-serif"><h1>Pagamento Pix</h1><p>Copie e cole no seu banco:</p><textarea style="width:100%;height:100px;padding:10px">'+data.qr_code+'</textarea><br><br><img src="data:image/jpeg;base64,'+data.qr_code_base64+'" style="width:250px"><br><br><a href="sucesso.php?id='+data.id_pagamento+'">Já paguei (Ver Comprovante)</a></div>';
                             }
-                            resolve();
+                            else {
+                                alert("❌ Ocorreu um erro: " + (data.message || "Pagamento recusado. Verifique os dados."));
+                                resolve(); // Permite tentar de novo na mesma tela
+                            }
                         })
-                        .catch((error) => {
-                            // Captura erros graves (como arquivo PHP não encontrado ou erro de sintaxe)
+                        .catch(error => {
                             console.error(error);
-                            alert("Erro crítico de comunicação com o servidor. Verifique o console (F12).");
+                            alert("Erro de comunicação com o servidor.");
                             reject();
                         });
                     });
@@ -136,14 +158,11 @@ $email_paciente = "paciente_teste@email.com";
                 },
             },
         };
-        window.paymentBrickController = await bricksBuilder.create(
-            'payment',
-            'paymentBrick_container',
-            settings
-        );
+        window.paymentBrickController = await bricksBuilder.create('payment', 'paymentBrick_container', settings);
     };
 
     renderPaymentBrick(bricksBuilder);
-    </script>
+</script>
+
 </body>
 </html>

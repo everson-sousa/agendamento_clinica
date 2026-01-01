@@ -1,103 +1,72 @@
 <?php
+// processa_agendamento.php - Versão "Guest" (Sem Login)
 session_start();
+require_once 'conexao.php';
 
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php');
-    exit;
+// 1. Recebendo dados da URL
+$id_profissional = $_GET['p'] ?? null;
+$id_servico      = $_GET['s'] ?? null;
+$data_inicio     = $_GET['d'] ?? null;
+$hora_inicio     = $_GET['h'] ?? null;
+
+if (!$id_profissional || !$id_servico || !$data_inicio || !$hora_inicio) {
+    die("Erro: Dados incompletos. Volte ao calendário.");
 }
-// 1. Inicia a sessão e faz a verificação de segurança
-session_start();
-if (!isset($_SESSION['usuario_id'])) {
-    header("Location: login.php");
-    exit;
-}
 
-// 2. Inclui a conexão
-require_once 'conexao.php'; // Traz a variável $pdo
+try {
+    // 2. Buscar Serviço
+    $stmt = $pdo->prepare("SELECT preco, quantidade_sessoes FROM servicos WHERE id = ?");
+    $stmt->execute([$id_servico]);
+    $servico = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 3. Verifica se os dados vieram por POST
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (!$servico) die("Serviço não encontrado.");
 
-    // 4. Pega os dados do formulário
-    $id_profissional = $_POST['id_profissional'];
-    $id_paciente = $_POST['id_paciente'];         
-    $tipo_atendimento = $_POST['tipo_atendimento']; 
-    $observacoes = $_POST['observacoes'];
-    
-    // Combina data e hora
-    $data_hora_inicio = $_POST['data_inicio'] . ' ' . $_POST['hora_inicio'];
-    $data_hora_fim = $_POST['data_inicio'] . ' ' . $_POST['hora_fim'];
-    
-    $status = 'marcado'; // Padrão
+    $qtd_sessoes = $servico['quantidade_sessoes'];
+    $grupo_id    = uniqid('pct_'); // Identificador do carrinho
+    $hora_fim    = date('H:i:s', strtotime("$hora_inicio + 50 minutes"));
 
-    // 5. Validação e Segurança
-    if ($_SESSION['usuario_tipo'] == 'profissional' && $id_profissional != $_SESSION['usuario_id']) {
-        die("Erro: Você não tem permissão para marcar agendamentos para outros profissionais.");
-    }
-    
-    // ------------------------------------------------------------------
-    // *** 6. NOVA VERIFICAÇÃO DE CONFLITO (DUPLICIDADE) ***
-    // ------------------------------------------------------------------
-    try {
-        $sql_conflito = "SELECT id FROM agendamentos 
-                         WHERE id_profissional = ? 
-                         AND status != 'cancelado'
-                         AND data_hora_inicio < ?  -- Início Existente < Fim Novo
-                         AND data_hora_fim > ?    -- Fim Existente > Início Novo";
+    $pdo->beginTransaction();
 
-        $stmt_conflito = $pdo->prepare($sql_conflito);
+    // 3. Loop de Reserva (Sem ID de usuário)
+    for ($i = 0; $i < $qtd_sessoes; $i++) {
+        $data_calculada = date('Y-m-d', strtotime("+$i week", strtotime($data_inicio)));
+
+        // Verifica disponibilidade
+        $check = $pdo->prepare("SELECT count(*) FROM agendamentos 
+                                WHERE id_profissional = ? 
+                                AND data_agendamento = ? 
+                                AND hora_agendamento = ? 
+                                AND status_pagamento != 'cancelado'");
+        $check->execute([$id_profissional, $data_calculada, $hora_inicio]);
         
-        // Executa a query com os parâmetros corretos
-        $stmt_conflito->execute([
-            $id_profissional,
-            $data_hora_fim,     // Parâmetro 2 ($data_hora_fim)
-            $data_hora_inicio   // Parâmetro 3 ($data_hora_inicio)
-        ]);
-
-        $conflito = $stmt_conflito->fetch();
-
-        // Se $conflito NÃO for falso, significa que ENCONTROU um agendamento
-        if ($conflito) {
-            die("<b>Erro: Conflito de Horário!</b> O profissional selecionado já possui um agendamento que se sobrepõe a este horário. <br><a href='javascript:history.back()'>Tentar Novamente</a>");
+        if ($check->fetchColumn() > 0) {
+            $data_br = date('d/m/Y', strtotime($data_calculada));
+            throw new Exception("O dia $data_br às $hora_inicio já está ocupado.");
         }
 
-    } catch (PDOException $e) {
-        die("Erro ao verificar conflitos: " ."<br>". $e->getMessage());
-    }
-    // --- FIM DA VERIFICAÇÃO DE CONFLITO ---
-
-
-    // 7. Prepara o Comando SQL (só executa se passou do passo 6)
-    $sql = "INSERT INTO agendamentos 
-                (id_profissional, id_paciente, data_hora_inicio, data_hora_fim, status, tipo_atendimento, observacoes)
-            VALUES 
-                (?, ?, ?, ?, ?, ?, ?)";
-
-    // 8. Tenta executar no banco
-    try {
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $id_profissional,
-            $id_paciente,
-            $data_hora_inicio,
-            $data_hora_fim,
-            $status,
-            $tipo_atendimento,
-            $observacoes
+        // Insere com id_usuario NULL (Visitante)
+        $sql = "INSERT INTO agendamentos (
+                    id_usuario, id_profissional, id_servico, 
+                    data_agendamento, hora_agendamento, hora_fim, 
+                    valor, status_pagamento, grupo_id
+                ) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'pendente', ?)";
+        
+        $stmt_insert = $pdo->prepare($sql);
+        $stmt_insert->execute([
+            $id_profissional, $id_servico, 
+            $data_calculada, $hora_inicio, $hora_fim, 
+            $servico['preco'], $grupo_id
         ]);
-
-        // 9. Sucesso!
-        echo "Agendamento cadastrado com sucesso!";
-        echo '<br><a href="ver_agendamentos.php">Ver Agendamentos</a>';
-        echo '<br><a href="cadastrar_agendamento.php">Cadastrar Outro</a>';
-
-    } catch (PDOException $e) {
-        // 10. Erro!
-        echo "Erro ao cadastrar o agendamento: " . $e->getMessage();
     }
 
-} else {
-    // Se alguém tentar acessar o arquivo direto pela URL
-    echo "Acesso inválido.";
+    $pdo->commit();
+
+    // 4. Manda para o Checkout (lá pediremos o CPF)
+		header("Location: checkout_cartão.php?ref=$grupo_id");    exit;
+
+} catch (Exception $e) {
+    $pdo->rollBack();
+    echo "<h2 style='color:red; text-align:center'>" . $e->getMessage() . "</h2>";
+    echo "<center><a href='agenda_publica.php?p=$id_profissional'>Voltar</a></center>";
 }
 ?>

@@ -343,3 +343,45 @@ form button:hover {
         text-align: center;
     }
 }
+
+
+/* Calendário ocupa 100% da coluna */
+#calendar { width: 100%; }
+
+/* Melhorias de toque e legibilidade no mobile */
+@media (max-width: 768px) {
+  .fc { font-size: 14px; }
+
+  .fc .fc-toolbar-title { font-size: 1.05em !important; }
+
+  .fc .fc-button {
+    padding: 8px 12px !important;
+    border-radius: 10px;
+  }
+
+  /* Cabeçalho dos dias da semana menor e mais compacto */
+  .fc .fc-col-header-cell-cushion {
+    padding: 6px 0 !important;
+    font-size: 12px;
+  }
+
+  /* Número do dia com área de toque melhor */
+  .fc .fc-daygrid-day-number {
+    padding: 8px !important;
+    font-size: 14px;
+  }
+
+  /* Quando entrar no DIA, aumente a altura dos slots (melhor toque) */
+  .fc .fc-timegrid-slot {
+    height: 46px !important;
+  }
+
+  .fc .fc-timegrid-event {
+    border-radius: 10px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+}
+#calendar { min-height: 520px; }
+@media (max-width: 768px) { #calendar { min-height: 520px; } }
+

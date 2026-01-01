@@ -34,6 +34,7 @@ $sql_base = "SELECT
             JOIN
                 pacientes AS pac ON ag.id_paciente = pac.id";
 
+// Adicionando condições para profissional
 $params = []; 
 
 if ($tipo_usuario_logado == 'profissional') {
@@ -41,7 +42,8 @@ if ($tipo_usuario_logado == 'profissional') {
     $params[] = $id_usuario_logado;
 }
 
-$sql_base .= " ORDER BY ag.data_hora_inicio ASC";
+// Alteração aqui: Usando data_agendamento e hora_agendamento
+$sql_base .= " ORDER BY ag.data_agendamento ASC, ag.hora_agendamento ASC";
 
 // 6. Executa a consulta
 try {
@@ -81,9 +83,10 @@ if (count($agendamentos) == 0) {
             <?php
             foreach ($agendamentos as $ag) {
                 
-                $inicio_formatado = date('d/m/Y H:i', strtotime($ag['data_hora_inicio']));
-                $fim_formatado = date('d/m/Y H:i', strtotime($ag['data_hora_fim']));
-                
+                // Alteração aqui para formatar data e hora usando data_agendamento e hora_agendamento
+                $inicio_formatado = date('d/m/Y H:i', strtotime($ag['data_agendamento'] . ' ' . $ag['hora_agendamento']));
+                $fim_formatado = date('d/m/Y H:i', strtotime($ag['data_agendamento'] . ' ' . $ag['hora_fim']));
+
                 echo "<tr>";
                 echo "<td>" . htmlspecialchars($ag['nome_paciente']) . "</td>";
                 echo "<td>" . $inicio_formatado . "</td>";

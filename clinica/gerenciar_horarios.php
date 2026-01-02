@@ -1,4 +1,5 @@
 <?php
+// gerenciar_horarios.php - CORRIGIDO: Filtra apenas PROFISSIONAIS no select
 $tituloPagina = "Gerenciar Disponibilidade (Vitrine)";
 require_once 'header.php';
 require_once 'conexao.php';
@@ -17,10 +18,11 @@ $erro_sql = null;
 
 if ($tipo_usuario == 'admin') {
     try {
-        // Tenta buscar usando a coluna tipo_usuario
-        $sql_prof = "SELECT id, nome FROM usuarios WHERE id != ? ORDER BY nome ASC";
+        // CORREÇÃO AQUI: Filtra apenas quem tem tipo_acesso = 'profissional'
+        // (Isso impede que pacientes apareçam no dropdown)
+        $sql_prof = "SELECT id, nome FROM usuarios WHERE id != ? AND tipo_acesso = 'profissional' ORDER BY nome ASC";
         $stmt = $pdo->prepare($sql_prof);
-        $stmt->execute([$id_usuario_logado]); // Remove o próprio admin da lista de "profissionais"
+        $stmt->execute([$id_usuario_logado]); // Remove o próprio admin da lista
         $profissionais = $stmt->fetchAll();
     } catch (PDOException $e) {
         $erro_sql = "Erro ao buscar profissionais: " . $e->getMessage();
